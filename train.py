@@ -71,9 +71,9 @@ parser.add_argument('--model', default='resnet101', type=str, metavar='MODEL',
 parser.add_argument('--pretrained', action='store_true', default=False,
                     help='Start with pretrained version of specified network (if avail)')
 parser.add_argument('--initial-checkpoint', default='', type=str, metavar='PATH',
-                    help='Initialize model from this checkpoint (default: none)')
+                    help='Initialize model from this checkpoint (default: none)') ## checkpoint!
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='Resume full model and optimizer state from checkpoint (default: none)')
+                    help='Resume full model and optimizer state from checkpoint (default: none)') ## checkpoint with optimizer
 parser.add_argument('--no-resume-opt', action='store_true', default=False,
                     help='prevent resume of optimizer state when resuming model')
 parser.add_argument('--num-classes', type=int, default=1000, metavar='N',
@@ -97,7 +97,7 @@ parser.add_argument('-vb', '--validation-batch-size-multiplier', type=int, defau
 
 # Optimizer parameters
 parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
-                    help='Optimizer (default: "sgd"')
+                    help='Optimizer (default: "sgd"') #rmsprop, adam, radam, sgd
 parser.add_argument('--opt-eps', default=None, type=float, metavar='EPSILON',
                     help='Optimizer Epsilon (default: None, use opt default)')
 parser.add_argument('--opt-betas', default=None, type=float, nargs='+', metavar='BETA',
@@ -179,13 +179,13 @@ parser.add_argument('--cutmix', type=float, default=0.0,
 parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None,
                     help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
 parser.add_argument('--mixup-prob', type=float, default=1.0,
-                    help='Probability of performing mixup or cutmix when either/both is enabled')
+                    help='Probability of performing mixup or cutmix when either/both is enabled') ## 수행롹률
 parser.add_argument('--mixup-switch-prob', type=float, default=0.5,
-                    help='Probability of switching to cutmix when both mixup and cutmix enabled')
+                    help='Probability of switching to cutmix when both mixup and cutmix enabled') ## cutmix로 스위치
 parser.add_argument('--mixup-mode', type=str, default='batch',
-                    help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+                    help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"') ## batch에 적용할지
 parser.add_argument('--mixup-off-epoch', default=0, type=int, metavar='N',
-                    help='Turn off mixup after this epoch, disabled if 0 (default: 0)')
+                    help='Turn off mixup after this epoch, disabled if 0 (default: 0)') ##끄는 epoch
 parser.add_argument('--smoothing', type=float, default=0.1,
                     help='Label smoothing (default: 0.1)')
 parser.add_argument('--train-interpolation', type=str, default='random',
