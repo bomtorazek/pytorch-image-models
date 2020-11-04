@@ -35,6 +35,7 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy, JsdCro
 from timm.optim import create_optimizer
 from timm.scheduler import create_scheduler
 from timm.utils import ApexScaler, NativeScaler
+from sklearn.metrics import f1_score
 
 try:
     from apex import amp
@@ -92,6 +93,8 @@ parser.add_argument('--interpolation', default='', type=str, metavar='NAME',
                     help='Image resize interpolation type (overrides model)')
 parser.add_argument('-b', '--batch-size', type=int, default=32, metavar='N',
                     help='input batch size for training (default: 32)')
+parser.add_argument('--fold-num', type=int, default=-1, 
+                    help='fold_num for 5-fold cv')                    
 parser.add_argument('-vb', '--validation-batch-size-multiplier', type=int, default=1, metavar='N',
                     help='ratio of validation batch size to training batch size (default: 1)')
 
@@ -248,8 +251,8 @@ parser.add_argument('--no-prefetcher', action='store_true', default=False,
                     help='disable fast prefetcher')
 parser.add_argument('--output', default='', type=str, metavar='PATH',
                     help='path to output folder (default: none, current dir)')
-parser.add_argument('--eval-metric', default='top1', type=str, metavar='EVAL_METRIC',
-                    help='Best metric (default: "top1"')
+parser.add_argument('--eval-metric', default='f1', type=str, metavar='EVAL_METRIC',
+                    help='Best metric (default: "f1"')
 parser.add_argument('--tta', type=int, default=0, metavar='N',
                     help='Test/inference time augmentation (oversampling) factor. 0=None (default: 0)')
 parser.add_argument("--local_rank", default=0, type=int)
@@ -442,7 +445,7 @@ def main():
     if not os.path.exists(train_dir):
         _logger.error('Training folder does not exist at: {}'.format(train_dir))
         exit(1)
-    dataset_train = Dataset(train_dir)
+    dataset_train = Dataset(train_dir, is_val = False, fold_num = args.fold_num)
 
     collate_fn = None
     mixup_fn = None
@@ -492,13 +495,13 @@ def main():
         use_multi_epochs_loader=args.use_multi_epochs_loader
     )
 
-    eval_dir = os.path.join(args.data, 'val')
+    eval_dir = os.path.join(args.data, 'train')
     if not os.path.isdir(eval_dir):
         eval_dir = os.path.join(args.data, 'validation')
         if not os.path.isdir(eval_dir):
             _logger.error('Validation folder does not exist at: {}'.format(eval_dir))
             exit(1)
-    dataset_eval = Dataset(eval_dir)
+    dataset_eval = Dataset(eval_dir, is_val = True, fold_num = args.fold_num)
 
     loader_eval = create_loader(
         dataset_eval,
@@ -697,7 +700,8 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
     batch_time_m = AverageMeter()
     losses_m = AverageMeter()
     top1_m = AverageMeter()
-    top5_m = AverageMeter()
+    f1_m = AverageMeter()
+    # top5_m = AverageMeter()
 
     model.eval()
 
@@ -724,12 +728,14 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
                 target = target[0:target.size(0):reduce_factor]
 
             loss = loss_fn(output, target)
-            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+            acc1 = accuracy(output, target, topk=(1, 1))
+            f1 = f1_score(target ,output)
 
             if args.distributed:
                 reduced_loss = reduce_tensor(loss.data, args.world_size)
                 acc1 = reduce_tensor(acc1, args.world_size)
-                acc5 = reduce_tensor(acc5, args.world_size)
+                f1 = reduce_tensor(f1, args.world_size)
+                # acc5 = reduce_tensor(acc5, args.world_size)
             else:
                 reduced_loss = loss.data
 
@@ -737,7 +743,8 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
 
             losses_m.update(reduced_loss.item(), input.size(0))
             top1_m.update(acc1.item(), output.size(0))
-            top5_m.update(acc5.item(), output.size(0))
+            f1_m.update(f1.item(), output.size(0))
+            # top5_m.update(acc5.item(), output.size(0))
 
             batch_time_m.update(time.time() - end)
             end = time.time()
@@ -748,11 +755,11 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
                     'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})  '
                     'Loss: {loss.val:>7.4f} ({loss.avg:>6.4f})  '
                     'Acc@1: {top1.val:>7.4f} ({top1.avg:>7.4f})  '
-                    'Acc@5: {top5.val:>7.4f} ({top5.avg:>7.4f})'.format(
+                    'f1: {f1.val:>7.4f} ({f1.avg:>7.4f})'.format(
                         log_name, batch_idx, last_idx, batch_time=batch_time_m,
-                        loss=losses_m, top1=top1_m, top5=top5_m))
+                        loss=losses_m, top1=top1_m, f1=f1_m))
 
-    metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
+    metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('f1', f1_m.avg)])
 
     return metrics
 
