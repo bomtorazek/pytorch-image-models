@@ -47,14 +47,14 @@ def find_images_and_targets(folder, train_mode, fold_num, types=IMG_EXTENSIONS, 
         for idx, line in enumerate(f.readlines()[1:]):
             if fold_num == -1:
                 v = line.strip().split(',')
-                filenames.append(v[0])
+                filenames.append(os.path.join(folder,v[0]))
                 if train_mode != 'test':
-                    labels.append = v[2] # title_name, label
+                    labels.append(int(v[2])) # title_name, label
             else:
                 if (idx % 5) in idx_list:
                     v = line.strip().split(',')
-                    filenames.append(v[0])
-                    labels.append = v[2] # title_name, label
+                    filenames.append(os.path.join(folder,v[0]))
+                    labels.append(int(v[2])) # title_name, label
 
 
 

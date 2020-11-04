@@ -225,8 +225,8 @@ def validate(args):
                 real_labels.add_result(output)
 
             # measure accuracy and record loss
-            acc1 = accuracy(output.detach(), target, topk=(1, 1))
-            f1 = f1_score(target ,output)
+            acc1, _  = accuracy(output.detach(), target, topk=(1,1))
+            f1 = f1_score(target.cpu().numpy() ,torch.argmax(output, dim=1).cpu().numpy())
             losses.update(loss.item(), input.size(0))
             top1.update(acc1.item(), input.size(0))
             f1_m.update(f1.item(), output.size(0))

@@ -34,6 +34,7 @@ def fast_collate(batch):
                 tensor[i + j * batch_size] += torch.from_numpy(batch[i][0][j])
         return tensor, targets
     elif isinstance(batch[0][0], np.ndarray):
+
         targets = torch.tensor([b[1] for b in batch], dtype=torch.int64)
         assert len(targets) == batch_size
         tensor = torch.zeros((batch_size, *batch[0][0].shape), dtype=torch.uint8)

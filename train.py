@@ -728,13 +728,13 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
                 target = target[0:target.size(0):reduce_factor]
 
             loss = loss_fn(output, target)
-            acc1 = accuracy(output, target, topk=(1, 1))
-            f1 = f1_score(target ,output)
+            acc1, _ = accuracy(output, target, topk=(1,1))
+            f1 = f1_score(target.cpu().numpy() ,torch.argmax(output,dim=1).cpu().numpy())
 
             if args.distributed:
                 reduced_loss = reduce_tensor(loss.data, args.world_size)
                 acc1 = reduce_tensor(acc1, args.world_size)
-                f1 = reduce_tensor(f1, args.world_size)
+#                 f1 = reduce_tensor(f1, args.world_size)
                 # acc5 = reduce_tensor(acc5, args.world_size)
             else:
                 reduced_loss = loss.data
