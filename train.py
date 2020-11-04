@@ -445,7 +445,7 @@ def main():
     if not os.path.exists(train_dir):
         _logger.error('Training folder does not exist at: {}'.format(train_dir))
         exit(1)
-    dataset_train = Dataset(train_dir, is_val = False, fold_num = args.fold_num)
+    dataset_train = Dataset(train_dir, train_mode = 'train', fold_num = args.fold_num)
 
     collate_fn = None
     mixup_fn = None
@@ -501,7 +501,7 @@ def main():
         if not os.path.isdir(eval_dir):
             _logger.error('Validation folder does not exist at: {}'.format(eval_dir))
             exit(1)
-    dataset_eval = Dataset(eval_dir, is_val = True, fold_num = args.fold_num)
+    dataset_eval = Dataset(eval_dir, train_mode = 'val', fold_num = args.fold_num)
 
     loader_eval = create_loader(
         dataset_eval,

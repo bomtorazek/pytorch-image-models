@@ -51,7 +51,7 @@ parser.add_argument('--num-gpu', type=int, default=1,
                     help='Number of GPUS to use')
 parser.add_argument('--no-test-pool', dest='no_test_pool', action='store_true',
                     help='disable test time pool')
-parser.add_argument('--topk', default=5, type=int,
+parser.add_argument('--topk', default=1, type=int,
                     metavar='N', help='Top-k to output to CSV')
 
 
@@ -81,7 +81,7 @@ def main():
         model = model.cuda()
 
     loader = create_loader(
-        Dataset(args.data),
+        Dataset(args.data, train_mode= 'test', fold_num= -1),
         input_size=config['input_size'],
         batch_size=args.batch_size,
         use_prefetcher=True,
@@ -114,12 +114,13 @@ def main():
 
     topk_ids = np.concatenate(topk_ids, axis=0).squeeze()
 
-    with open(os.path.join(args.output_dir, './topk_ids.csv'), 'w') as out_file:
+    with open(os.path.join(args.output_dir, './prediction.tsv'), 'w') as out_file:
         filenames = loader.dataset.filenames(basename=True)
-        for filename, label in zip(filenames, topk_ids):
-            out_file.write('{0},{1},{2},{3},{4},{5}\n'.format(
-                filename, label[0], label[1], label[2], label[3], label[4]))
-
+        filenames_int = [int(f.split['.'][0]) for f in filenames]
+        idx = np.argsort(filenames_int)
+        topk_ids = topk_ids[idx]
+        for label in topk_ids:
+            out_file.write('{0}\n'.format(label)) ##FIXME
 
 if __name__ == '__main__':
     main()

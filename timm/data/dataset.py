@@ -23,7 +23,7 @@ def natural_key(string_):
     return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_.lower())]
 
 
-def find_images_and_targets(folder, is_val, fold_num, types=IMG_EXTENSIONS, class_to_idx=None, leaf_name_only=True, sort=True):
+def find_images_and_targets(folder, train_mode, fold_num, types=IMG_EXTENSIONS, class_to_idx=None, leaf_name_only=True, sort=True):
 
     
     label_path = os.path.join(folder, 'train'+'.csv')
@@ -32,26 +32,28 @@ def find_images_and_targets(folder, is_val, fold_num, types=IMG_EXTENSIONS, clas
         filenames = []
 
         if fold_num != -1:
-            if is_val:
+            if train_mode == 'val': 
                 idx_list = [(fold_num+3)%5]
-            else:
+            elif train_mode == 'train': #
                 idx_list = [(fold_num-1)%5,(fold_num)%5,(fold_num+1)%5,(fold_num+2)%5]
-        # elif train_mode == "test":
-        #     idx_list = [0,1,2,3,4]
-        # else:
-        #     raise ValueError('train mode should be train, val, or test')
+            else:
+                raise ValueError('train mode should be train, val, or test')
+        else:
+            if train_mode == "test":
+                idx_list = [0,1,2,3,4]
+            else:
+                raise ValueError('train mode should be train, val, or test')
 
         for idx, line in enumerate(f.readlines()[1:]):
             if fold_num == -1:
                 v = line.strip().split(',')
                 filenames.append(v[0])
-                # if self.phase != 'test':
-                labels.append = v[2] # title_name, label
+                if train_mode != 'test':
+                    labels.append = v[2] # title_name, label
             else:
                 if (idx % 5) in idx_list:
                     v = line.strip().split(',')
                     filenames.append(v[0])
-                    # if self.phase != 'test':
                     labels.append = v[2] # title_name, label
 
 
@@ -89,7 +91,7 @@ class Dataset(data.Dataset):
     def __init__(
             self,
             root,
-            is_val,
+            train_mode,
             fold_num,
             load_bytes=False,
             transform=None,
@@ -99,7 +101,7 @@ class Dataset(data.Dataset):
         if class_map:
             class_to_idx = load_class_map(class_map, root)
 
-        images, class_to_idx = find_images_and_targets(root, is_val, fold_num, class_to_idx=class_to_idx)
+        images, class_to_idx = find_images_and_targets(root, train_mode, fold_num, class_to_idx=class_to_idx)
         if len(images) == 0:
             raise RuntimeError(f'Found 0 images in subfolders of {root}. '
                                f'Supported image extensions are {", ".join(IMG_EXTENSIONS)}')
