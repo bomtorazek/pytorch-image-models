@@ -26,6 +26,7 @@ from datetime import datetime
 import torch
 import torch.nn as nn
 import torchvision.utils
+import numpy as np
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
 from timm.data import Dataset, create_loader, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset
@@ -700,7 +701,6 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
     batch_time_m = AverageMeter()
     losses_m = AverageMeter()
     top1_m = AverageMeter()
-    f1_m = AverageMeter()
     # top5_m = AverageMeter()
 
     model.eval()
@@ -708,6 +708,9 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
     end = time.time()
     last_idx = len(loader) - 1
     with torch.no_grad():
+        sig_list = []
+        target_list = []
+        m = nn.Sigmoid()
         for batch_idx, (input, target) in enumerate(loader):
             last_batch = batch_idx == last_idx
             if not args.prefetcher:
@@ -729,8 +732,31 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
 
             loss = loss_fn(output, target)
             acc1, _ = accuracy(output, target, topk=(1,1))
-            f1 = f1_score(target.cpu().numpy() ,torch.argmax(output,dim=1).cpu().numpy())
+            
+            sigmoided = m(output)
+            
+            sig_list.append(np.expand_dims(sigmoided[:,1].cpu().numpy(), axis = 1))
+            target_list.append(np.expand_dims(target.cpu().numpy(), axis = 1))
+            
+            best_f1 = 0.0
+            best_th = 1.0
+            if last_batch:
+                sig_list = np.vstack(sig_list)
+                target_list = np.vstack(target_list)
+                best_f1 = 0.0
+                best_th = None
+                for i in range(1000,0,-1):
+                    th = i*0.001
+                    real_pred = (sig_list >= th)*1.0
+                    f1 = f1_score(target_list.squeeze() ,real_pred.squeeze())
 
+                    if f1 > best_f1:
+                        best_f1 = f1
+                        best_th = th
+
+                print(best_f1, best_th)
+            
+            
             if args.distributed:
                 reduced_loss = reduce_tensor(loss.data, args.world_size)
                 acc1 = reduce_tensor(acc1, args.world_size)
@@ -743,23 +769,24 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
 
             losses_m.update(reduced_loss.item(), input.size(0))
             top1_m.update(acc1.item(), output.size(0))
-            f1_m.update(f1.item(), output.size(0))
+#             f1_m.update(best_f1.item(), output.size(0))
             # top5_m.update(acc5.item(), output.size(0))
 
             batch_time_m.update(time.time() - end)
             end = time.time()
-            if args.local_rank == 0 and (last_batch or batch_idx % args.log_interval == 0):
+            if args.local_rank == 0 and (last_batch):
                 log_name = 'Test' + log_suffix
                 _logger.info(
                     '{0}: [{1:>4d}/{2}]  '
                     'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})  '
                     'Loss: {loss.val:>7.4f} ({loss.avg:>6.4f})  '
                     'Acc@1: {top1.val:>7.4f} ({top1.avg:>7.4f})  '
-                    'f1: {f1.val:>7.4f} ({f1.avg:>7.4f})'.format(
+                    'thresh: {thresh:>7.4f}  '
+                    'f1: {f1:>7.4f}'.format(
                         log_name, batch_idx, last_idx, batch_time=batch_time_m,
-                        loss=losses_m, top1=top1_m, f1=f1_m))
+                        loss=losses_m, top1=top1_m,thresh = best_th, f1= best_f1))
 
-    metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('f1', f1_m.avg)])
+    metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('f1', best_f1), ('thresh', best_th)])
 
     return metrics
 

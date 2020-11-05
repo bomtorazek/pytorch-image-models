@@ -53,6 +53,8 @@ parser.add_argument('--no-test-pool', dest='no_test_pool', action='store_true',
                     help='disable test time pool')
 parser.add_argument('--topk', default=1, type=int,
                     metavar='N', help='Top-k to output to CSV')
+parser.add_argument('--thresh', default=0.5, type=float,
+                    metavar='N', help='')
 
 
 def main():
@@ -93,16 +95,21 @@ def main():
 
     model.eval()
 
-    k = min(args.topk, args.num_classes)
+#     k = min(args.topk, args.num_classes)
     batch_time = AverageMeter()
     end = time.time()
     topk_ids = []
+    name_list = []
+    sig_list = []
+    m = torch.nn.Sigmoid()
     with torch.no_grad():
-        for batch_idx, (input, _) in enumerate(loader):
+        for batch_idx, (input, _,) in enumerate(loader):
             input = input.cuda()
             labels = model(input)
-            topk = labels.topk(k)[1]
-            topk_ids.append(topk.cpu().numpy())
+            sigmoided = m(labels)
+            sig_list.append(np.expand_dims(sigmoided[:,1].cpu().numpy(), axis = 1))
+#             topk = labels.topk(k)[1]
+#             topk_ids.append(topk.cpu().numpy())
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -112,15 +119,30 @@ def main():
                 _logger.info('Predict: [{0}/{1}] Time {batch_time.val:.3f} ({batch_time.avg:.3f})'.format(
                     batch_idx, len(loader), batch_time=batch_time))
 
-    topk_ids = np.concatenate(topk_ids, axis=0).squeeze()
-
+#     topk_ids = np.concatenate(topk_ids, axis=0).squeeze()
+    sig_list = np.vstack(sig_list)
+    name_list = loader.dataset.filenames(basename=True)
+    real_sigmoid = sig_list.squeeze()
+    real_pred = ((sig_list >= args.thresh)*1).squeeze()
+    
+    name_pred_dict = {}
+    for idx in range(len(name_list)):
+        name_pred_dict[name_list[idx]] = (real_pred[idx], real_sigmoid[idx])
+    
     with open(os.path.join(args.output_dir, './prediction.tsv'), 'w') as out_file:
-        filenames = loader.dataset.filenames(basename=True)
-        filenames_int = [int(f.split['.'][0]) for f in filenames]
-        idx = np.argsort(filenames_int)
-        topk_ids = topk_ids[idx]
-        for label in topk_ids:
-            out_file.write('{0}\n'.format(label)) ##FIXME
-
+#         filenames_int = [int(f.split('.')[0]) for f in filenames]
+#         for name, topk in zip(filenames_int, topk_ids):
+#             print(name,topk)
+#             i = i+1
+#             if i == 10:
+#                 break
+#         idx = np.argsort(filenames_int)
+#         topk_ids = topk_ids[idx]
+        for name in name_list:
+            print(int(name_pred_dict[name][0]))
+            out_file.write('{}\n'.format(str(name_pred_dict[name][0])))
+    with open(os.path.join(args.output_dir, './probability.tsv'), 'w') as out_file:
+        for name in name_list:
+            out_file.write('{}\n'.format(name_pred_dict[name][1]))
 if __name__ == '__main__':
     main()

@@ -25,8 +25,10 @@ def natural_key(string_):
 
 def find_images_and_targets(folder, train_mode, fold_num, types=IMG_EXTENSIONS, class_to_idx=None, leaf_name_only=True, sort=True):
 
-    
-    label_path = os.path.join(folder, 'train'+'.csv')
+    if train_mode != "test":
+        label_path = os.path.join(folder, 'train'+'.csv')
+    else:
+        label_path = os.path.join(folder, 'test'+'.csv')
     with open(label_path, 'r', encoding='utf-8-sig') as f:
         labels = []
         filenames = []
@@ -48,14 +50,12 @@ def find_images_and_targets(folder, train_mode, fold_num, types=IMG_EXTENSIONS, 
             if fold_num == -1:
                 v = line.strip().split(',')
                 filenames.append(os.path.join(folder,v[0]))
-                if train_mode != 'test':
-                    labels.append(int(v[2])) # title_name, label
+                labels.append(int(v[2])) # title_name, label
             else:
                 if (idx % 5) in idx_list:
                     v = line.strip().split(',')
                     filenames.append(os.path.join(folder,v[0]))
                     labels.append(int(v[2])) # title_name, label
-
 
 
     # if class_to_idx is None:
@@ -111,6 +111,7 @@ class Dataset(data.Dataset):
         self.class_to_idx = class_to_idx
         self.load_bytes = load_bytes
         self.transform = transform
+        self.train_mode = train_mode
 
     def __getitem__(self, index):
         path, target = self.samples[index]
