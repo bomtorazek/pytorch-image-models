@@ -11,7 +11,7 @@ import argparse
 import logging
 import numpy as np
 import torch
-
+from shutil import copyfile
 from timm.models import create_model, apply_test_time_pool
 from timm.data import Dataset, create_loader, resolve_data_config
 from timm.utils import AverageMeter, setup_default_logging
@@ -129,6 +129,7 @@ def main():
     for idx in range(len(name_list)):
         name_pred_dict[name_list[idx]] = (real_pred[idx], real_sigmoid[idx])
     
+    args.output_dir = args.checkpoint.replace(args.checkpoint.split('/')[-1], "")
     with open(os.path.join(args.output_dir, './prediction.tsv'), 'w') as out_file:
 #         filenames_int = [int(f.split('.')[0]) for f in filenames]
 #         for name, topk in zip(filenames_int, topk_ids):
@@ -144,5 +145,8 @@ def main():
     with open(os.path.join(args.output_dir, './probability.tsv'), 'w') as out_file:
         for name in name_list:
             out_file.write('{}\n'.format(name_pred_dict[name][1]))
+            
+    copyfile(os.path.join(args.output_dir, './prediction.tsv'), '/home/workspace/user-workspace/prediction/'+'prediction_153_'+ args.checkpoint.split('/')[-2] +'.tsv')
+    
 if __name__ == '__main__':
     main()
