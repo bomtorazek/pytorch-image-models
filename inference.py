@@ -11,6 +11,7 @@ import argparse
 import logging
 import numpy as np
 import torch
+import torch.nn as nn
 from shutil import copyfile
 from timm.models import create_model, apply_test_time_pool
 from timm.data import Dataset, create_loader, resolve_data_config
@@ -101,11 +102,13 @@ def main():
     topk_ids = []
     name_list = []
     sig_list = []
+    logits_list = []
     m = torch.nn.Sigmoid()
     with torch.no_grad():
         for batch_idx, (input, _,) in enumerate(loader):
             input = input.cuda()
             labels = model(input)
+            logits_list.append(labels)
             sigmoided = m(labels)
             sig_list.append(np.expand_dims(sigmoided[:,1].cpu().numpy(), axis = 1))
 #             topk = labels.topk(k)[1]
@@ -120,11 +123,18 @@ def main():
                     batch_idx, len(loader), batch_time=batch_time))
 
 #     topk_ids = np.concatenate(topk_ids, axis=0).squeeze()
+#     logits = torch.cat(logits_list).cuda()
+#     temperature = nn.Parameter(torch.ones(1) * args.te).to(torch.device('cuda') ).detach().requires_grad_(False)
+#     logits = logits/temperature.unsqueeze(1).expand(logits.size(0), logits.size(1))
+#     temp_sigmoided =  m(logits)[:,1].detach().cpu().numpy()
+    
     sig_list = np.vstack(sig_list)
     name_list = loader.dataset.filenames(basename=True)
-    real_sigmoid = sig_list.squeeze()
-    real_pred = ((sig_list >= args.thresh)*1).squeeze()
     
+    real_sigmoid = sig_list.squeeze()
+#     real_sigmoid = temp_sigmoided
+    real_pred = ((sig_list >= args.thresh)*1).squeeze()
+
     name_pred_dict = {}
     for idx in range(len(name_list)):
         name_pred_dict[name_list[idx]] = (real_pred[idx], real_sigmoid[idx])
@@ -140,7 +150,6 @@ def main():
 #         idx = np.argsort(filenames_int)
 #         topk_ids = topk_ids[idx]
         for name in name_list:
-            print(int(name_pred_dict[name][0]))
             out_file.write('{}\n'.format(str(name_pred_dict[name][0])))
     with open(os.path.join(args.output_dir, './probability.tsv'), 'w') as out_file:
         for name in name_list:
